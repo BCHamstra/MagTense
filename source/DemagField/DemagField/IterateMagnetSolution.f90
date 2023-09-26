@@ -44,7 +44,7 @@
         
         logical :: done
         integer(4) :: i,j,cnt,i_err,lambdaCnt
-        real(8),dimension(3) :: M
+        !real(8),dimension(3) :: M
         real(8),dimension(:,:),allocatable :: H,H_old
         real(8),dimension(:),allocatable :: Hnorm,Hnorm_old,err_val,Mnorm,Mnorm_old
         type(NStoreArr),dimension(:),allocatable :: Nstore
@@ -65,6 +65,9 @@
         
         !! Initialization
         H(:,:) = 0
+        !do i=1,n
+        !    H(i,:) = H(i,:) + tiles(i)%Happ(:)
+        !end do
         maxRelDiffArr(:) = 0.
         cnt = 0
         Mnorm(:) = 0.
@@ -75,7 +78,7 @@
         lambdaCnt = 0
     
         done = .false.
-        
+                
         !!Iteration loop
         do
             
@@ -112,6 +115,7 @@
                             
                         case ( MagnetTypeSoftConstPerm )
                             call getM_SoftConstMur( tiles(i), H(i,:) )
+                            !write(*,*) "i, H, M:", i, H(i,:), tiles(i)%M
                             
                         case default
                         end select
@@ -224,6 +228,10 @@
                         
                         call getFieldFromTiles( tiles, H(i,:), pts, n, 1, Nstore(i)%N )     !< Get the field in the i'th tile from all tiles           
                     
+                        !! add externally applied field here, unless it is a soft magnet, in which case it is done within getFieldFromTiles
+                        if (tiles(i)%excludeFromSummation .eqv. .false.) then
+                            H(i,:) = H(i,:) + tiles(i)%Happ
+                        end if
                         
                         !! When lambda == 1 then the new solution dominates. As lambda is decreased, the step towards the new solution is dampened
                         H(i,:) = H_old(i,:) + lambda * ( H(i,:) - H_old(i,:) )
@@ -238,6 +246,12 @@
         
             
             cnt = cnt + 1   !< Update iteration step
+!            write(*,*) Mnorm
+!            write(*,*) "-------------------------------------------------------"
+!            write(*,*) Mnorm_old
+!            write(*,*) "-------------------------------------------------------"
+!            write(*,*) Mnorm-Mnorm_old
+!            write(*,*) maxval(abs( (Mnorm-Mnorm_old)/Mnorm_old ))
             
             !call saveMagnetizationDebug( tiles, n, cnt )   !< Only for debugging purposes, saves the magnetization out to a binary file
             
@@ -260,13 +274,18 @@
                     tiles(i)%Mrel = err_val(i)
                 enddo
             
-                err = maxval(err_val)
+                if ( cnt .gt. 3) then
+                    err = maxval(err_val)
+                else
+                    err = 1
+                end if
             
                 !! Update maxRelDiff array            
                 maxRelDiffArr = cshift( maxRelDiffArr, 1 )
                 maxRelDiffArr(1) = err
             
                 if ( err .lt. err_max * lambda ) then
+                    write(*,*) "err, err_max, err < err_max:", err, err_max*lambda,err .lt. err_max*lambda
                     done = .true.
 
                 else if ( cnt .gt. max_ite ) then     
@@ -283,7 +302,7 @@
         
             lambdaCnt = lambdaCnt + 1
 
-            write(prog_str,'(A7, F15.7, A13, F15.7)') 'Error: ', err, ' Max. Error: ', err_max * lambda
+            write(prog_str,'(A7, I4, A8, E15.7, A13, E15.7)') 'Count: ', cnt, ' Error: ', err, ' Max. Error: ', err_max * lambda
             call displayGUIMessage( trim(prog_str) )
              
         enddo    

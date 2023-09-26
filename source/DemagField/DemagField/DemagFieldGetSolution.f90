@@ -34,7 +34,7 @@
         real(8),dimension(3,3) :: N_current_tile   !>The tensor for the current tile where the field has to be handled differently (see below)
         real(8),dimension(3) :: mur                !>The permeability tensor
         real(8) :: Happ_nrm,Hnorm
-        real(8),dimension(3) :: Happ_un,NHapp,v1,v2
+        real(8),dimension(3) :: Happ_un,NHapp,v1,v2,Hext
             
         !set to false by default and update later
         localFieldSoft = .false.
@@ -62,14 +62,14 @@
         prgCnt = 0
         prog = 0
     
-        ! $OMP PARALLEL DO PRIVATE(i,H_tmp)    
+        !$OMP PARALLEL DO PRIVATE(i,H_tmp)    
         do i=1,n_tiles
         
             !Make sure to allocate H_tmp on the heap and for each thread
-            ! $OMP CRITICAL
+            !$OMP CRITICAL
             H_tmp(:,:) = 0.        
         
-            ! $OMP END CRITICAL
+            !$OMP END CRITICAL
             !! Here a selection of which subroutine to use should be done, i.e. whether the tile
             !! is cylindrical, a prism or an ellipsoid or another geometry
             select case (tiles(i)%tileType )
@@ -127,22 +127,26 @@
             end select
         
             if ( tiles(i)%excludeFromSummation .eqv. .false. ) then
+                !$OMP CRITICAL
                 H = H + H_tmp
+                !$OMP END CRITICAL
             else
                 !this happens if the local tile is made of soft ferromagnetic material and should be treated specially
-                localFieldSoft = .true.
+                
                 !then also store the demag tensor for later use
                 if ( useStoredN .eqv. .true. ) then
+                    localFieldSoft = .true.
                     N_current_tile = Nout(i,1,:,:)
                     mur(1) = tiles(i)%mu_r_ea
                     mur(2) = tiles(i)%mu_r_oa
                     mur(3) = tiles(i)%mu_r_oa
+                    Hext = tiles(i)%Happ
                endif
             endif
         
         
         enddo
-        ! $OMP END PARALLEL DO
+        !$OMP END PARALLEL DO
     
         !Finally include the field of the tile itself (if assuming constant permeability)
         !B = mu0 * (H + M) = mu0 * mur * H => M = H * (mur - 1) =>
@@ -161,7 +165,8 @@
         
         !Note that N is likely negative as we by convention absorb the sign into the demag tensor
         if ( localFieldSoft .eqv. .true. )  then
-            
+            !externally applied field
+            H(1,:) = H(1,:) + Hext
             
             !norm of applied field
             Happ_nrm = sqrt( H(1,1)**2 + H(1,2)**2 + H(1,3)**2 )

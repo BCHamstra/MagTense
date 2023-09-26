@@ -15,7 +15,7 @@ module TileNComponents
         real :: a, b, c
         
         !::Generel variables, shared among all tile types
-        real,dimension(3) :: M
+        real,dimension(3) :: M,Happ
         real,dimension(3) :: u_ea,u_oa1,u_oa2    
         real :: mu_r_ea,mu_r_oa,Mrem
         integer :: tileType        !::defines whether the tile is cylindrical, a prism, an ellipsoid and so on
