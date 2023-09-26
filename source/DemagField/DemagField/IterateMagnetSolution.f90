@@ -65,9 +65,9 @@
         
         !! Initialization
         H(:,:) = 0
-        !do i=1,n
-        !    H(i,:) = H(i,:) + tiles(i)%Happ(:)
-        !end do
+        do i=1,n
+            H(i,:) = H(i,:) + tiles(i)%Happ(:)
+        end do
         maxRelDiffArr(:) = 0.
         cnt = 0
         Mnorm(:) = 0.
@@ -246,12 +246,6 @@
         
             
             cnt = cnt + 1   !< Update iteration step
-!            write(*,*) Mnorm
-!            write(*,*) "-------------------------------------------------------"
-!            write(*,*) Mnorm_old
-!            write(*,*) "-------------------------------------------------------"
-!            write(*,*) Mnorm-Mnorm_old
-!            write(*,*) maxval(abs( (Mnorm-Mnorm_old)/Mnorm_old ))
             
             !call saveMagnetizationDebug( tiles, n, cnt )   !< Only for debugging purposes, saves the magnetization out to a binary file
             
@@ -274,11 +268,7 @@
                     tiles(i)%Mrel = err_val(i)
                 enddo
             
-                if ( cnt .gt. 3) then
-                    err = maxval(err_val)
-                else
-                    err = 1
-                end if
+                err = maxval(err_val)
             
                 !! Update maxRelDiff array            
                 maxRelDiffArr = cshift( maxRelDiffArr, 1 )
