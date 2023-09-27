@@ -7,7 +7,8 @@
 *.sln.docstates
 
 # Build results
-
+*.a
+*.o
 [Dd]ebug/
 [Dd]ebug_no_CUDA/
 [Rr]elease/
