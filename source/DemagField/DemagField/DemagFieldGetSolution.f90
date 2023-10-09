@@ -34,7 +34,7 @@
         real(8),dimension(3,3) :: N_current_tile   !>The tensor for the current tile where the field has to be handled differently (see below)
         real(8),dimension(3) :: mur                !>The permeability tensor
         real(8) :: Happ_nrm,Hnorm
-        real(8),dimension(3) :: Happ_un,NHapp,v1,v2,Hext
+        real(8),dimension(3) :: Happ_un,NHapp,v1,v2,Hext,Hnew,Hold
             
         !set to false by default and update later
         localFieldSoft = .false.
@@ -134,14 +134,14 @@
                 !this happens if the local tile is made of soft ferromagnetic material and should be treated specially
                 
                 !then also store the demag tensor for later use
-                if ( useStoredN .eqv. .true. ) then
+                !if ( useStoredN .eqv. .true. ) then
                     localFieldSoft = .true.
                     N_current_tile = Nout(i,1,:,:)
                     mur(1) = tiles(i)%mu_r_ea
                     mur(2) = tiles(i)%mu_r_oa
                     mur(3) = tiles(i)%mu_r_oa
                     Hext = tiles(i)%Happ
-               endif
+               !endif
             endif
         
         
@@ -172,20 +172,33 @@
             Happ_nrm = sqrt( H(1,1)**2 + H(1,2)**2 + H(1,3)**2 )
             if ( Happ_nrm .ne. 0 ) then
                 !unit vector of applied field
-                Happ_un = H(1,:) / Happ_nrm
+!                Happ_un = H(1,:) / Happ_nrm
                 !demag tensor product
-                NHapp = matmul( N_current_tile, Happ_un )
+!                NHapp = matmul( N_current_tile, Happ_un )
             
                 !temp vector 1
-                v1 = (mur-1.) * NHapp - Happ_un
+!                v1 = (mur-1.) * NHapp - Happ_un
                 !temp vector 2
-                v2 = Happ_un
-                Hnorm = -Happ_nrm * dot_product(v1,v2) / ( v1(1)**2 + v1(2)**2 + v1(3)**2 )
+!                v2 = Happ_un
+!                Hnorm = -Happ_nrm * dot_product(v1,v2) / ( v1(1)**2 + v1(2)**2 + v1(3)**2 )
             
                 !Update the resulting field
-                H(:,1) = Happ_un(1) * Hnorm
-                H(:,2) = Happ_un(2) * Hnorm
-                H(:,3) = Happ_un(3) * Hnorm
+!                H(:,1) = Happ_un(1) * Hnorm
+!                H(:,2) = Happ_un(2) * Hnorm
+!                H(:,3) = Happ_un(3) * Hnorm
+                Hnew = [0,0,0]
+                do
+                    Hold = Hnew
+                    Hnew = H(1,:) + (mur-1.)*matmul(N_current_tile, Hnew);
+                    Hnew = Hold + min(1/maxval(mur),0.5)*(Hnew - Hold);
+                    !write(*,*) Hold
+                    !write(*,*) Hnew
+                    !write(*,*) maxval(abs(Hnew-Hold)/Hold)
+                    if (maxval(abs((Hnew-Hold)/Hold)) .lt. 0.0001*min(1/maxval(mur),0.5)) then
+                        exit
+                    end if
+                end do
+                H(1,:) = Hnew
             endif
         endif
         deallocate(H_tmp)

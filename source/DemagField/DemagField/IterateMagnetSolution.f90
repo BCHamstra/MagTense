@@ -74,14 +74,13 @@
         Mnorm_old(:) = 0.
     
         !! Relaxation parameter
-        lambda = 1.
+        lambda = 0.7
         lambdaCnt = 0
     
         done = .false.
                 
         !!Iteration loop
         do
-            
             if ( done .eqv. .true. ) then
                 exit
             endif
@@ -115,7 +114,6 @@
                             
                         case ( MagnetTypeSoftConstPerm )
                             call getM_SoftConstMur( tiles(i), H(i,:) )
-                            !write(*,*) "i, H, M:", i, H(i,:), tiles(i)%M
                             
                         case default
                         end select
@@ -275,7 +273,6 @@
                 maxRelDiffArr(1) = err
             
                 if ( err .lt. err_max * lambda ) then
-                    write(*,*) "err, err_max, err < err_max:", err, err_max*lambda,err .lt. err_max*lambda
                     done = .true.
 
                 else if ( cnt .gt. max_ite ) then     
@@ -313,7 +310,7 @@
         if ( (maxDiff(1) .gt. maxDiff(2) .AND. maxDiff(2) .lt. maxDiff(3) .AND. maxDiff(3) .gt. maxDiff(4)) .OR. &
              maxDiff(4) .gt. maxDiff(3) .AND. maxDiff(3) .gt. maxDiff(2) .AND. maxDiff(2) .gt. maxDiff(1) .OR. &
              maxDiff(4) .gt. maxDiff(3) .AND. maxDiff(3) .gt. maxDiff(2) .AND. maxDiff(2) .lt. maxDiff(1) ) then
-            lambda = lambda * 0.5
+            lambda = lambda * 0.75
             lCh = .true.
         endif
     end subroutine updateLambda
