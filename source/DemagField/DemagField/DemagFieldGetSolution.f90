@@ -2,6 +2,8 @@
     module DemagFieldGetSolution
     
     use TileNComponents
+    use MagParameters
+    use spline
 
     implicit none
       
@@ -19,7 +21,7 @@
     !!@param n_ele, the number of points at which to evaluate the field
     !!@param Nout the demag tensor calculated by this function (size (n_tiles,n_pts,3,3) )
     !!
-    subroutine getFieldFromTiles( tiles, H, pts, n_tiles, n_ele, Nout, useStoredNorg )
+    subroutine getFieldFromTiles( tiles, H, pts, n_tiles, n_ele, Nout, useStoredNorg, stateFunction )
         type(MagTile),intent(inout),dimension(n_tiles) :: tiles
         real(8),dimension(n_ele,3),intent(inout) :: H
         real(8),dimension(n_ele,3),intent(in) :: pts
@@ -33,8 +35,11 @@
         logical :: useStoredN,localFieldSoft    !>Indicates whether the local field of the tile should be found as if the tile is made of a soft ferromagnetic material
         real(8),dimension(3,3) :: N_current_tile   !>The tensor for the current tile where the field has to be handled differently (see below)
         real(8),dimension(3) :: mur                !>The permeability tensor
-        real(8) :: Happ_nrm,Hnorm
-        real(8),dimension(3) :: Happ_un,NHapp,v1,v2,Hext,Hnew,Hold
+        real(8) :: Happ_nrm,Hnorm,Mnorm
+        real(8),dimension(3) :: Happ_un,NHapp,v1,v2,Hext,Hnew,Hold,Mnew
+        
+        integer(4) :: stateIndex, magnetType
+        type(MagStateFunction),dimension(:),intent(in),optional :: stateFunction
             
         !set to false by default and update later
         localFieldSoft = .false.
@@ -61,7 +66,6 @@
         
         prgCnt = 0
         prog = 0
-    
         !$OMP PARALLEL DO PRIVATE(i,H_tmp)    
         do i=1,n_tiles
         
@@ -140,6 +144,8 @@
                     mur(1) = tiles(i)%mu_r_ea
                     mur(2) = tiles(i)%mu_r_oa
                     mur(3) = tiles(i)%mu_r_oa
+                    stateIndex = tiles(i)%stateFunctionIndex
+                    magnetType = tiles(i)%magnetType
                     Hext = tiles(i)%Happ
                !endif
             endif
@@ -167,39 +173,43 @@
         if ( localFieldSoft .eqv. .true. )  then
             !externally applied field
             H(1,:) = H(1,:) + Hext
-            
-            !norm of applied field
-            Happ_nrm = sqrt( H(1,1)**2 + H(1,2)**2 + H(1,3)**2 )
-            if ( Happ_nrm .ne. 0 ) then
-                !unit vector of applied field
-!                Happ_un = H(1,:) / Happ_nrm
-                !demag tensor product
-!                NHapp = matmul( N_current_tile, Happ_un )
-            
-                !temp vector 1
-!                v1 = (mur-1.) * NHapp - Happ_un
-                !temp vector 2
-!                v2 = Happ_un
-!                Hnorm = -Happ_nrm * dot_product(v1,v2) / ( v1(1)**2 + v1(2)**2 + v1(3)**2 )
-            
-                !Update the resulting field
-!                H(:,1) = Happ_un(1) * Hnorm
-!                H(:,2) = Happ_un(2) * Hnorm
-!                H(:,3) = Happ_un(3) * Hnorm
-                Hnew = [0,0,0]
+
+            Hnew = [0,0,0]
+            if (magnetType .eq. MagnetTypeSoftConstPerm) then
                 do
                     Hold = Hnew
                     Hnew = H(1,:) + (mur-1.)*matmul(N_current_tile, Hnew);
                     Hnew = Hold + min(1/maxval(mur),0.5)*(Hnew - Hold);
-                    !write(*,*) Hold
-                    !write(*,*) Hnew
-                    !write(*,*) maxval(abs(Hnew-Hold)/Hold)
+
                     if (maxval(abs((Hnew-Hold)/Hold)) .lt. 0.0001*min(1/maxval(mur),0.5)) then
                         exit
                     end if
                 end do
-                H(1,:) = Hnew
-            endif
+            else if (magnetType .eq. MagnetTypeSoft) then
+                do
+                    Hold = Hnew
+                    Hnorm = sqrt(Hnew(1)**2 + Hnew(2)**2 + Hnew(3)**2)
+                    if ( Hnorm .ne. 0 ) then
+                        call spline_b_val ( stateFunction(stateIndex)%nH, stateFunction(stateIndex)%H, stateFunction(stateIndex)%M(1,:), Hnorm, Mnorm )
+                        Mnew = Mnorm * Hnew / Hnorm  !< Assume that the M vector is along the H vector
+                    else
+                        Mnew = 0
+                        Mnorm = 0
+                    endif
+
+                    Hnew = H(1,:) + matmul(N_current_tile, Mnew);
+                    Hnew = Hold + min(Hnorm/Mnorm,0.5)*(Hnew - Hold);
+
+                    if (maxval(abs((Hnew-Hold)/Hold)) .lt. 0.0001*min(1/maxval(mur),0.5)) then
+                        exit
+                    end if
+                end do
+            else
+                write(*,*) "Unknown magnet type"
+                stop
+            end if
+            
+            H(1,:) = Hnew
         endif
         deallocate(H_tmp)
         

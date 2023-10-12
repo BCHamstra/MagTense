@@ -49,7 +49,7 @@
         real(8),dimension(:),allocatable :: Hnorm,Hnorm_old,err_val,Mnorm,Mnorm_old
         type(NStoreArr),dimension(:),allocatable :: Nstore
         real(8),dimension(3) :: pts    
-        real(8) :: H_par,H_trans_1,H_trans_2,err,lambda,tmp
+        real(8) :: H_par,H_trans_1,H_trans_2,err,lambda,tmp,chi
         real(8),dimension(4) :: maxRelDiffArr
         real(8),dimension(3,3) :: rotMat,rotMatInv
         logical :: lCh
@@ -82,6 +82,11 @@
         !!Iteration loop
         do
             if ( done .eqv. .true. ) then
+                chi = 0
+                do i=1,n
+                    chi = chi + Mnorm(i)/sqrt( sum( H(i,:)**2 ) )
+                enddo
+                write(*,*) "mu_r: ", chi/n + 1
                 exit
             endif
         
@@ -224,7 +229,7 @@
                             tiles(i)%excludeFromSummation = .true.
                         endif
                         
-                        call getFieldFromTiles( tiles, H(i,:), pts, n, 1, Nstore(i)%N )     !< Get the field in the i'th tile from all tiles           
+                        call getFieldFromTiles( tiles, H(i,:), pts, n, 1, Nstore(i)%N, stateFunction = stateFunction )     !< Get the field in the i'th tile from all tiles           
                     
                         !! add externally applied field here, unless it is a soft magnet, in which case it is done within getFieldFromTiles
                         if (tiles(i)%excludeFromSummation .eqv. .false.) then
